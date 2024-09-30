@@ -1,7 +1,3 @@
-#![feature(available_concurrency)]
-#![feature(iter_intersperse)]
-#![feature(try_trait)]
-
 use std::fs::File;
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -35,8 +31,12 @@ fn main() {
     ).get_matches();
 
     if matches.is_present("gui") {
-        #[cfg(feature = "gui")] gui::run_gui(); // This call diverges.
-        util::log_fatal("osurate was not compiled with gui support; recompile with `--features gui`");
+        #[cfg(feature = "gui")] {
+            gui::run_gui(); // This call diverges.
+        }
+        #[cfg(not(feature = "gui"))] {
+            util::log_fatal("osurate was not compiled with gui support; recompile with `--features gui`");
+        }
     } else {
         let rate_matches = matches.values_of("rates").unwrap();
         let map_paths = matches.values_of("inputs").unwrap();

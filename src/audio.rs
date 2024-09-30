@@ -7,6 +7,7 @@ use dasp::{signal, Signal};
 use dasp::interpolate::linear::Linear;
 use lame::Lame;
 use minimp3::Decoder;
+use num_cpus;
 
 use crate::beatmap::Beatmap;
 use crate::util;
@@ -70,7 +71,7 @@ fn stretch(src: impl Read, dest: &mut impl Write, rate: f64) -> Result<()> {
 
     // Gather samples from each frame and resample.
     let samples = frames.into_iter().flat_map(|f| f.data).collect();
-    let concurrency = thread::available_concurrency().map(|n| n.get()).unwrap_or(2);
+    let concurrency = num_cpus::get();
     let (samples_l, samples_r) = resample_parallel(samples, rate, concurrency);
 
     let mut lame = Lame::new().ok_or(AudioStretchError::LameInitializationError)?;

@@ -1,6 +1,5 @@
 use std::{io, result};
 use std::io::BufRead;
-use std::option::NoneError;
 use std::str::FromStr;
 
 use crate::beatmap::{
@@ -15,6 +14,7 @@ pub enum ParseError {
     UnsupportedVersion,
     InvalidBeatmap,
     IoError,
+    NoneError,
 }
 
 impl From<io::Error> for ParseError {
@@ -23,9 +23,9 @@ impl From<io::Error> for ParseError {
     }
 }
 
-impl From<NoneError> for ParseError {
-    fn from(_: NoneError) -> Self {
-        ParseError::InvalidBeatmap
+impl From<()> for ParseError {
+    fn from(_: ()) -> Self {
+        ParseError::NoneError
     }
 }
 
@@ -41,7 +41,7 @@ impl<R: BufRead> Parser<R> {
     }
 
     pub fn parse(&mut self) -> Result<Beatmap> {
-        let header = trim_utf8_bom(self.read_line()?)?;
+        let header = trim_utf8_bom(self.read_line()?).ok_or(ParseError::InvalidBeatmap)?;
         verify_ff(header.starts_with("osu file format v"))?;
         util::verify(&header[17..] == "14", ParseError::UnsupportedVersion)?;
 
@@ -88,7 +88,7 @@ impl<R: BufRead> Parser<R> {
 
         let mut line = self.read_line()?;
         while !is_section_header_or_eof(&line) {
-            let (key, value) = line.split_once(": ")?;
+            let (key, value) = line.split_once(": ").ok_or(ParseError::NoneError)?;
             match key {
                 "AudioFilename" => audio_file = value.to_string(),
                 "PreviewTime" => preview_time = parse_ff(value)?,
@@ -108,7 +108,7 @@ impl<R: BufRead> Parser<R> {
 
         let mut line = self.read_line()?;
         while !is_section_header_or_eof(&line) {
-            let (key, value) = line.split_once(":")?;
+            let (key, value) = line.split_once(":").ok_or(ParseError::NoneError)?;
             match key {
                 "Version" => diff_name = value.to_string(),
                 _ => rest += &(line + "\n"),
@@ -145,17 +145,17 @@ impl<R: BufRead> Parser<R> {
             let mut split = line.split(',');
             let mut rest_parts = vec![]; // See `beatmap/mod.rs`.
 
-            rest_parts.push(format!("{},{}", split.next()?, split.next()?));
-            let time = parse_ff(split.next()?)?;
-            let kind = parse_ff::<i32>(split.next()?)?;
-            rest_parts.push(format!("{},{}", kind, split.next()?));
+            rest_parts.push(format!("{},{}", split.next().ok_or(ParseError::NoneError)?, split.next().ok_or(ParseError::NoneError)?));
+            let time = parse_ff(split.next().ok_or(ParseError::NoneError)?)?;
+            let kind = parse_ff::<i32>(split.next().ok_or(ParseError::NoneError)?)?;
+            rest_parts.push(format!("{},{}", kind, split.next().ok_or(ParseError::NoneError)?));
 
             let params = if kind & (1 << 0) == 1 || kind & (1 << 1) == 2 {
                 HitObjectParams::NoneUseful
             } else if kind & (1 << 3) == 8 {
-                HitObjectParams::Spinner(parse_ff(split.next()?)?)
+                HitObjectParams::Spinner(parse_ff(split.next().ok_or(ParseError::NoneError)?)?)
             } else if kind & (1 << 7) == 128 {
-                let end_time = split.clone().next()?.split_once(':')?.0;
+                let end_time = split.clone().next().ok_or(ParseError::NoneError)?.split_once(':').ok_or(ParseError::NoneError)?.0;
                 HitObjectParams::LongNote(parse_ff(end_time)?)
             } else {
                 return Err(ParseError::InvalidBeatmap);

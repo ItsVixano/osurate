@@ -36,7 +36,7 @@ impl Beatmap {
         self.general_info.preview_time = if preview >= 0 { transform(preview) } else { preview };
         self.metadata.diff_name += &format!(" ({}x)", rate);
 
-        for mut point in &mut self.timing_points {
+        for point in &mut self.timing_points {
             point.time = transform_f64(point.time);
 
             // Only re-time uninherited timing points.
@@ -45,7 +45,7 @@ impl Beatmap {
             }
         }
 
-        for mut object in &mut self.hit_objects {
+        for object in &mut self.hit_objects {
             object.time = transform(object.time);
 
             // Change the end times for relevant hit objects.
